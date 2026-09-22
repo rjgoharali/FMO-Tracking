@@ -1,0 +1,35 @@
+name: Backend, dashboard and database checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: fmo_test
+          POSTGRES_USER: fmo_test
+          POSTGRES_PASSWORD: ci-only-test-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fmo_test -d fmo_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run admin:build
+      - run: npm run mobile:core:check && npm run mobile:test
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://fmo_test:ci-only-test-password@localhost:5432/fmo_test
+      - run: docker build -f backend/Dockerfile .
+      - run: npx playwright install --with-deps chromium
+      - run: npm run admin:test
+      - run: docker build -f admin-dashboard/Dockerfile .

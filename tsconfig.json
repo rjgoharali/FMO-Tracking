@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "target": "ES2023", "module": "NodeNext", "moduleResolution": "NodeNext",
+    "strict": true, "noUncheckedIndexedAccess": true, "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true, "skipLibCheck": true,
+    "resolveJsonModule": true, "types": ["node"], "outDir": "dist", "rootDir": "."
+  },
+  "include": ["backend/**/*.ts", "database/**/*.ts", "packages/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

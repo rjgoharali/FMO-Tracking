@@ -1,0 +1,58 @@
+{
+  "name": "fmo-tracking-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11"
+  },
+  "workspaces": [
+    "backend",
+    "packages/*",
+    "mobile",
+    "admin-dashboard"
+  ],
+  "scripts": {
+    "dev": "tsx watch backend/src/server.ts",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test --test-concurrency=1 backend/test/*.test.ts database/test/*.test.ts packages/contracts/test/*.test.ts",
+    "test:postgres": "node scripts/test-postgres.mjs",
+    "check": "npm run typecheck && npm test && npm run build",
+    "db:migrate": "tsx database/migrate.ts",
+    "db:seed": "tsx database/seed/run.ts",
+    "db:admin": "tsx database/seed/admin.ts",
+    "mobile:setup": "node scripts/setup-mobile.mjs",
+    "mobile:core:check": "tsc -p mobile/tsconfig.core.json",
+    "mobile:test": "node --experimental-strip-types --test --test-isolation=none mobile/test/*.test.ts",
+    "mobile:start": "npm run start -w @fmo/mobile",
+    "mobile:typecheck": "npm run typecheck -w @fmo/mobile",
+    "mobile:export": "npm run export:android -w @fmo/mobile",
+    "admin:dev": "npm run dev -w @fmo/admin-dashboard",
+    "admin:typecheck": "npm run typecheck -w @fmo/admin-dashboard",
+    "admin:build": "npm run build -w @fmo/admin-dashboard",
+    "admin:test": "playwright test -c admin-dashboard/playwright.config.ts",
+    "local:setup": "npm run build && node scripts/local-setup.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/react": "19.2.14",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "socket.io-client": "4.8.3",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-native": "0.85.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.0",
+    "pg": "^8.16.0"
+  }
+}

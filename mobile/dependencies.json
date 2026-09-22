@@ -1,0 +1,5 @@
+{
+  "expo": "~56.0.0",
+  "reactTypes": "19.2.14",
+  "sdkManaged": ["react", "react-native", "react-native-safe-area-context", "@expo/vector-icons", "expo-dev-client", "expo-status-bar", "expo-location", "expo-task-manager", "expo-sqlite", "expo-secure-store", "expo-camera", "expo-image-manipulator", "expo-file-system", "expo-battery", "expo-network", "expo-crypto"]
+}

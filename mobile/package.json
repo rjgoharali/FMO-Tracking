@@ -1,0 +1,36 @@
+{
+  "name": "@fmo/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "prebuild:android": "expo prebuild --platform android --template expo-template-bare-minimum@56.0.36",
+    "export:android": "expo export --platform android --output-dir dist",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "15.1.1",
+    "expo": "56.0.22",
+    "expo-battery": "56.0.4",
+    "expo-camera": "56.0.8",
+    "expo-crypto": "56.0.5",
+    "expo-dev-client": "56.0.27",
+    "expo-file-system": "56.0.11",
+    "expo-image-manipulator": "56.0.26",
+    "expo-location": "56.0.26",
+    "expo-network": "56.0.5",
+    "expo-secure-store": "56.0.4",
+    "expo-sqlite": "56.0.6",
+    "expo-status-bar": "56.0.4",
+    "expo-task-manager": "56.0.27",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-safe-area-context": "5.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14"
+  }
+}

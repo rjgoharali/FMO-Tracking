@@ -1,0 +1,10 @@
+export type User = { id: string; employeeCode: string; name: string; role: 'ADMIN' | 'SUPER_ADMIN' | 'FMO'; isDemo: boolean };
+export type Settings = { organizationName: string; timezone: string; dutyDurationMinutes: number; trackingIntervalSeconds: number; staleAfterSeconds: number; offlineAfterSeconds: number; gpsAccuracyThresholdMeters: number; automaticDutyEnd: boolean };
+export type Fmo = { id: string; employeeCode: string; name: string; isActive: boolean; isDemo: boolean; phone: string | null; email: string | null; createdAt: string };
+export type Session = { id: string; fmoId: string; startTime: string; expectedEndTime: string; actualEndTime: string | null; reportedStopTime: string | null; status: 'ACTIVE' | 'COMPLETED'; serverDurationSeconds: number | null; reportedDurationSeconds: number | null; endLocationFailure: string | null; isDemo: boolean };
+export type Location = { id: string; dutySessionId: string; fmoId: string; latitude: number; longitude: number; accuracy: number; recordedAt: string; receivedAt: string; quality: string; isDemo: boolean; mocked: boolean; batteryLevel: number | null };
+export type Attendance = { id: string; dutySessionId: string; fmoId: string; checkInTime: string; accuracy: number; latitude: number; longitude: number; verificationStatus: string; isDemo: boolean; supersededAt: string | null; resetReason: string | null; name?: string; employeeCode?: string; dutyStart?: string; dutyEnd?: string | null; trackingStatus?: string; serverDurationSeconds?: number | null };
+export type Officer = { fmo: Fmo; session: Session | null; attendance: Attendance | null; lastLocation: Location | null; lastSeen: string | null; status: { duty: string; tracking: string } };
+export type Snapshot = { items: Officer[]; settings: Settings; serverTime: string; hasMore: boolean; nextAfterId: string | null };
+export type Summary = { totalFmos: number; onDuty: number; checkedIn: number; currentlyTracking: number; offline: number; stale: number; completedDuty: number; timezone: string; serverTime: string };
+export type Page<T> = { items: T[]; hasMore: boolean };

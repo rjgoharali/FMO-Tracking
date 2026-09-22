@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.env
+.env.*
+uploads
+.npm-cache
+coverage
+.test-tools
+.test-postgres
+.browser-test
+.local-runtime
