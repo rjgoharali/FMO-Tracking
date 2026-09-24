@@ -12,6 +12,7 @@ import { Settings } from './pages/Settings';
 import { ErrorNotice } from './components/ui';
 
 export default function App() {
+  useEffect(() => { const timer = window.setInterval(() => window.location.reload(), 60000); return () => window.clearInterval(timer); }, []);
   const session = useSyncExternalStore(subscribeAuth, authSnapshot), [booting, setBooting] = useState(true), [error, setError] = useState('');
   useEffect(() => { void refreshSession().catch(() => undefined).finally(() => setBooting(false)); }, []);
   if (booting) return <div className="boot"><div className="brand-mark"><MapPinned size={28} /></div><p>Opening field operations…</p></div>;

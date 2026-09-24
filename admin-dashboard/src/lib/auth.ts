@@ -4,10 +4,10 @@ type Session = { user: User; accessToken: string; expiresAt: number };
 type Reply = { user: User; accessToken: string; expiresIn: number };
 const marker = 'fmo.web.authentication-interrupted';
 const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'https://fmo-tracking-api.muhammadgohar32.workers.dev').replace(/\/$/, '');
-let session: Session | null = null; let rotation: Promise<Session> | null = null;
+let session: Session | null = (() => { try { const token = sessionStorage.getItem('fmo.accessToken'), user = sessionStorage.getItem('fmo.user'), expiresAt = Number(sessionStorage.getItem('fmo.expiresAt')); return token && user && expiresAt > Date.now() ? { accessToken: token, user: JSON.parse(user), expiresAt } : null; } catch { return null; } })(); let rotation: Promise<Session> | null = null;
 const listeners = new Set<() => void>();
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('fmo-session-control') : null;
-function changed(value: Session | null) { session = value; for (const listener of listeners) listener(); }
+function changed(value: Session | null) { session = value; if (value) { sessionStorage.setItem('fmo.accessToken', value.accessToken); sessionStorage.setItem('fmo.user', JSON.stringify(value.user)); sessionStorage.setItem('fmo.expiresAt', String(value.expiresAt)); } else { sessionStorage.removeItem('fmo.accessToken'); sessionStorage.removeItem('fmo.user'); sessionStorage.removeItem('fmo.expiresAt'); } for (const listener of listeners) listener(); }
 channel?.addEventListener('message', () => changed(null));
 export const subscribeAuth = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 export const authSnapshot = () => session;
@@ -44,7 +44,7 @@ export async function refreshSession() {
     if (localStorage.getItem(marker)) { changed(null); throw new ApiError(401, 'LOGIN_REQUIRED', 'Sign in again. A previous session change could not be confirmed.'); }
     // Persist only a nonsecret uncertainty flag, never tokens or officer data.
     localStorage.setItem(marker, '1');
-    try { const reply = await read<Reply>(await raw('/api/auth/refresh', { method: 'POST', body: '{}' })); const accepted = accept(reply); localStorage.removeItem(marker); return accepted; }
+    try { if (session) { const me = await read<{ user: User }>(await raw('/api/auth/me', {}, session.accessToken)); const accepted = { ...session, user: me.user, expiresAt: Date.now() + 8 * 60 * 60 * 1000 }; changed(accepted); localStorage.removeItem(marker); return accepted; } const reply = await read<Reply>(await raw('/api/auth/refresh', { method: 'POST', body: '{}' })); const accepted = accept(reply); localStorage.removeItem(marker); return accepted; }
     catch (error) { changed(null); channel?.postMessage('signed-out'); throw error; }
   });
   try { return await rotation; } finally { rotation = null; }
