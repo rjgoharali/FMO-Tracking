@@ -12,7 +12,8 @@ const authUser = async (request: Request, env: Env) => {
   return env.DB.prepare(`SELECT u.id,u.employee_code,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>datetime('now') AND u.is_active=1`).bind(value.slice(7)).first<{ id:string; employee_code:string; name:string; role:string }>();
 };
 export default { async fetch(request: Request, env: Env): Promise<Response> {
-  const origin = request.headers.get('origin') === 'https://dashboard.rajagohar.live' ? 'https://dashboard.rajagohar.live' : 'https://dashboard.rajagohar.live';
+  const requestOrigin = request.headers.get('origin') ?? '';
+  const origin = ['https://dashboard.rajagohar.live', 'https://fmo-tracking.pages.dev'].includes(requestOrigin) ? requestOrigin : 'https://dashboard.rajagohar.live';
   if (request.method === 'OPTIONS') return json({}, 204, origin);
   const url = new URL(request.url);
   if (url.pathname === '/health/live') return json({ status: 'ok', service: 'fmo-worker' }, 200, origin);
