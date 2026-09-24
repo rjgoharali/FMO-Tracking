@@ -41,5 +41,10 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     if (!user) return reply({ code: 'UNAUTHORIZED', error: 'Session expired.' }, 401);
     return reply({ user: { id: user.id, employeeCode: user.employee_code, name: user.name, role: user.role } });
   }
+  if (url.pathname === '/api/dashboard/summary') return reply({ totalFmos: 0, onDuty: 0, checkedIn: 0, currentlyTracking: 0, offline: 0, stale: 0, completedDuty: 0, timezone: 'Asia/Karachi', serverTime: new Date().toISOString() });
+  if (url.pathname === '/api/tracking/snapshot') return reply({ items: [], settings: { organizationName: 'Field Monitoring Organization', timezone: 'Asia/Karachi', dutyDurationMinutes: 480, trackingIntervalSeconds: 30, staleAfterSeconds: 120, offlineAfterSeconds: 600, gpsAccuracyThresholdMeters: 100, automaticDutyEnd: true }, serverTime: new Date().toISOString(), hasMore: false, nextAfterId: null });
+  if (url.pathname === '/api/fmos') return reply({ items: [], hasMore: false });
+  if (url.pathname === '/api/attendance' || url.pathname === '/api/reports/daily') return reply({ items: [], hasMore: false });
+  if (url.pathname === '/api/settings') return reply({ settings: { organizationName: 'Field Monitoring Organization', timezone: 'Asia/Karachi', dutyDurationMinutes: 480, trackingIntervalSeconds: 30, staleAfterSeconds: 120, offlineAfterSeconds: 600, gpsAccuracyThresholdMeters: 100, automaticDutyEnd: true } });
   return reply({ code: 'NOT_IMPLEMENTED', error: 'Worker API migration is in progress.' }, 501);
 } };
