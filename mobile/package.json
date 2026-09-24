@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "15.1.1",
+    "@supabase/supabase-js": "2.117.1",
     "expo": "56.0.22",
     "expo-battery": "56.0.4",
     "expo-camera": "56.0.8",
