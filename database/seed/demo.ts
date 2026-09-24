@@ -23,30 +23,35 @@ export function validateSeedEnvironment(env: NodeJS.ProcessEnv) {
 export async function seedDemo(db: SqlClient, options: { adminPassword: string; fmoPassword: string; storagePath: string }) {
   const adminHash = await hashPassword(options.adminPassword);
   // Generate separate salts even though the development FMOs share a supplied password.
+  const names = [
+    'Muhammad Kaleem Arif', 'Anthony Munir', 'Raja Muhammad Hassan',
+    'Kamran Shehzad', 'Muhammad Shahzaib Ali', 'Bilal Hassan',
+    'Shahzaib Ali', 'Shehryar Haider', 'Muhammad Shariq Sadaqat',
+    'Imtiaz Hussain', 'Ali Raza', 'Waseem Abbas',
+  ];
   const fmoHashes: string[] = [];
-  for (let i = 0; i < 5; i++) fmoHashes.push(await hashPassword(options.fmoPassword));
+  for (let i = 0; i < names.length; i++) fmoHashes.push(await hashPassword(options.fmoPassword));
   await db.exec('BEGIN');
   try {
     await db.query('SELECT pg_advisory_xact_lock(702641924)');
     const previous = await db.query("SELECT id FROM audit_logs WHERE action = 'DEMO_SEEDED'");
     if (previous.rows.length) { await db.exec('COMMIT'); return { seeded: false, reason: 'Demo already seeded; existing records preserved' }; }
-    const collisions = await db.query("SELECT id FROM users WHERE login_id = 'DEMO-ADMIN' OR login_id = ANY($1::text[])",
-      [Array.from({ length: 5 }, (_, i) => `CHK-FMO-00${i + 1}`)]);
+    const loginIds = names.map((_, i) => `CHK-FMO-${String(i + 1).padStart(3, '0')}`);
+    const collisions = await db.query("SELECT id FROM users WHERE login_id = 'DEMO-ADMIN' OR login_id = ANY($1::text[])", [loginIds]);
     if (collisions.rows.length) throw new Error('Seed account IDs already exist; refusing to overwrite existing users');
 
     await mkdir(resolve(options.storagePath, 'demo'), { recursive: true });
     await writeFile(resolve(options.storagePath, demoImageKey), demoImage);
     const adminId = randomUUID();
     await db.query("INSERT INTO users(id, login_id, name, role, password_hash, is_demo) VALUES ($1, 'DEMO-ADMIN', 'Demo Administrator', 'SUPER_ADMIN', $2, true)", [adminId, adminHash]);
-    const names = ['Muhammad Ayaz', 'Ahmed Raza', 'Bilal Ahmed', 'Usman Ali', 'Hassan Mahmood'];
     const clock = await db.query<{ server_now: Date | string }>('SELECT now() AS server_now');
     const now = new Date(clock.rows[0]!.server_now).getTime();
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < names.length; i++) {
       const userId = randomUUID(); const fmoId = randomUUID();
       await db.query("INSERT INTO users(id, login_id, name, role, password_hash, is_demo) VALUES ($1, $2, $3, 'FMO', $4, true)",
-        [userId, `CHK-FMO-00${i + 1}`, `${names[i]} (DEMO)`, fmoHashes[i]]);
+        [userId, loginIds[i], `${names[i]} (DEMO)`, fmoHashes[i]]);
       await db.query('INSERT INTO fmos(id, user_id) VALUES ($1, $2)', [fmoId, userId]);
-      if (i === 4) continue; // Fifth officer has not started duty.
+      if (i === names.length - 1) continue; // Last officer has not started duty.
       const sessionId = randomUUID();
       const start = now - (i === 3 ? 9 : 1) * 3600000;
       await db.query(`INSERT INTO duty_sessions(id, fmo_id, start_request_id, start_time, expected_end_time,
@@ -71,6 +76,6 @@ export async function seedDemo(db: SqlClient, options: { adminPassword: string; 
     await db.query("INSERT INTO audit_logs(actor_user_id, action, entity_type, metadata) VALUES ($1, 'DEMO_SEEDED', 'SYSTEM', $2)",
       [adminId, JSON.stringify({ demo: true, note: 'Synthetic locations and placeholder attendance image. Not real attendance.' })]);
     await db.exec('COMMIT');
-    return { seeded: true, fmos: 5, admins: 1 };
+    return { seeded: true, fmos: names.length, admins: 1 };
   } catch (error) { await db.exec('ROLLBACK'); throw error; }
 }
