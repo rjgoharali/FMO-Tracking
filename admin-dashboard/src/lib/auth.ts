@@ -3,7 +3,7 @@ export class ApiError extends Error { status: number; code: string; constructor(
 type Session = { user: User; accessToken: string; expiresAt: number };
 type Reply = { user: User; accessToken: string; expiresIn: number };
 const marker = 'fmo.web.authentication-interrupted';
-const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'https://fmo-tracking-api.muhammadgohar32.workers.dev').replace(/\/$/, '');
 let session: Session | null = null; let rotation: Promise<Session> | null = null;
 const listeners = new Set<() => void>();
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('fmo-session-control') : null;
