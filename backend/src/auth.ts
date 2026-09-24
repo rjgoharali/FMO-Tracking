@@ -70,7 +70,9 @@ export class Auth {
         ON CONFLICT(key_hash) DO UPDATE SET attempts=CASE WHEN login_rate_limits.window_start<now()-interval '15 minutes' THEN 1 ELSE login_rate_limits.attempts+1 END,
         window_start=CASE WHEN login_rate_limits.window_start<now()-interval '15 minutes' THEN now() ELSE login_rate_limits.window_start END RETURNING attempts`, [digest(input.employeeCode)]);
       if (counter!.attempts > 20) fail(429, 'LOGIN_THROTTLED', 'Too many login attempts. Try again after 15 minutes');
-      const user = await one<UserRow>(this.db, `${userSelect} WHERE u.login_id=$1`, [input.employeeCode]);
+      // FMOs may sign in with their registered full name or their unique FMO ID.
+      // Admin accounts remain ID-only to avoid ambiguous administrator names.
+      const user = await one<UserRow>(this.db, `${userSelect} WHERE u.login_id=$1 OR (u.role='FMO' AND lower(u.name)=lower($1))`, [input.employeeCode]);
       const correct = await verifyPassword(input.password, user?.password_hash ?? dummyHash);
       if (!correct || !user?.is_active || (user.role === 'FMO' && !user.fmo_id)) fail(401, 'INVALID_CREDENTIALS', 'Invalid FMO ID or password');
       const result = await this.db.transaction(async tx => {
