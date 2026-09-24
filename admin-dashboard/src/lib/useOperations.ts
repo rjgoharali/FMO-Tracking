@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { accessToken, api } from './auth';
 import type { Officer, Settings, Snapshot, Summary } from '../types';
+import { subscribeToSessionLocations } from './liveFirebase';
+import { ensureFirebaseIdentity } from './firebase';
 
 export function useOperations() {
   const [officers, setOfficers] = useState<Officer[]>([]), [settings, setSettings] = useState<Settings | null>(null), [summary, setSummary] = useState<Summary | null>(null);
@@ -48,5 +50,17 @@ export function useOperations() {
     const focus = () => requestRefresh(); window.addEventListener('focus', focus);
     return () => { alive = false; socket.disconnect(); clearInterval(clock); clearInterval(recovery); if (deferred) clearTimeout(deferred); window.removeEventListener('focus', focus); };
   }, []);
+  useEffect(() => {
+    if (!import.meta.env.VITE_FIREBASE_DATABASE_URL) return;
+    let stopped = false; const stops: Array<() => void> = [];
+    void ensureFirebaseIdentity().then(() => {
+      if (stopped) return;
+      officers.filter(row => row.session?.status === 'ACTIVE').map(row => row.session!.id).forEach(sessionId => stops.push(subscribeToSessionLocations(sessionId, points => {
+      const latest = points.at(-1); if (!latest) return;
+      setOfficers(current => current.map(row => row.session?.id === sessionId ? { ...row, lastLocation: { ...latest, quality: latest.accuracy <= (settings?.gpsAccuracyThresholdMeters ?? 100) ? 'GOOD' : 'POOR' } as Officer['lastLocation'], lastSeen: latest.recordedAt } : row));
+      })));
+    }).catch(() => undefined);
+    return () => { stopped = true; stops.forEach(stop => stop()); };
+  }, [officers.map(row => row.session?.id).join(','), settings?.gpsAccuracyThresholdMeters]);
   return { officers, settings, summary, connection, error, revision, updated, now, refresh: () => refresh.current() };
 }

@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
 
 const config = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -23,4 +23,11 @@ export async function signInFmo(email: string, password: string) {
 
 export async function signOutFmo() {
   return signOut(firebaseAuth);
+}
+
+/** Realtime Database writes use an anonymous Firebase identity. The business
+ * login remains the server JWT login; this identity only protects live data. */
+export async function ensureFirebaseIdentity(): Promise<User> {
+  if (firebaseAuth.currentUser) return firebaseAuth.currentUser;
+  return (await signInAnonymously(firebaseAuth)).user;
 }

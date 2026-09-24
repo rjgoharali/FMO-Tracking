@@ -1,5 +1,6 @@
 import { ApiFailure, type Ack, type Attendance, type CurrentReply, type Duty, type Platform, type Session, type Transport, type User } from './types.ts';
 import { Repository } from './repository.ts';
+import { publishAttendance, publishLocation } from '../platform/liveFirebase';
 
 export class SyncEngine {
   repo: Repository; api: Transport; platform: Platform;
@@ -34,6 +35,8 @@ export class SyncEngine {
             result = { attendance: remote.attendance };
           } else result = await this.api.selfie<{ attendance: Attendance }>(duty.photo);
           contactedServer = true;
+          const checkInPoint = duty.photo?.metadata.location;
+          if (checkInPoint) void publishAttendance(result.attendance.dutySessionId, { fmoId: user.fmoId, checkInTime: result.attendance.checkInTime, latitude: checkInPoint.latitude, longitude: checkInPoint.longitude, accuracy: result.attendance.accuracy }).catch(() => undefined);
           const uri = duty.photo.uri;
           duty = await this.repo.update(duty.key, d => ({ ...d, attendance: result.attendance, photo: null, issue: null }));
           await this.platform.deletePhoto(uri);
@@ -49,6 +52,7 @@ export class SyncEngine {
         const sent = await this.repo.pending(user.id, first.sessionId, 100);
         const reply = await this.api.json<{ acknowledgments: Ack[]; dutyStatus: string; trackingIntervalSeconds: number }>('/api/duty/location', 'POST', { dutySessionId: first.sessionId, points: sent.map(p => p.point) });
         contactedServer = true;
+        for (const point of sent) void publishLocation(first.sessionId, { latitude: point.point.latitude, longitude: point.point.longitude, accuracy: point.point.accuracy, recordedAt: point.point.recordedAt, speed: point.point.speed, batteryLevel: point.point.batteryLevel }).catch(() => undefined);
         await this.repo.acknowledge(user.id, first.sessionId, sent, reply.acknowledgments);
         if (first.sessionId === duty.session?.id) {
           duty = await this.repo.update(duty.key, d => ({ ...d,

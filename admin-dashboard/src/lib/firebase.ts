@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInAnonymously, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -23,4 +23,9 @@ export async function signInAdmin(email: string, password: string) {
 
 export async function signOutAdmin() {
   return signOut(firebaseAuth);
+}
+
+export async function ensureFirebaseIdentity(): Promise<User> {
+  if (firebaseAuth.currentUser) return firebaseAuth.currentUser;
+  return (await signInAnonymously(firebaseAuth)).user;
 }
