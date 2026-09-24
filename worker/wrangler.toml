@@ -1,0 +1,11 @@
+name = "fmo-tracking-api"
+main = "src/index.ts"
+compatibility_date = "2026-09-24"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fmo-tracking"
+database_id = "REPLACE_AFTER_CREATE"
+
+[vars]
+CORS_ORIGINS = "https://dashboard.rajagohar.live"
