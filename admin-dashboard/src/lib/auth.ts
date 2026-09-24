@@ -4,6 +4,7 @@ type Session = { user: User; accessToken: string; expiresAt: number };
 type Reply = { user: User; accessToken: string; expiresIn: number };
 const marker = 'fmo.web.authentication-interrupted';
 const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'https://fmo-tracking-api.muhammadgohar32.workers.dev').replace(/\/$/, '');
+let rememberSession = false;
 let session: Session | null = (() => { try { const token = sessionStorage.getItem('fmo.accessToken'), user = sessionStorage.getItem('fmo.user'), expiresAt = Number(sessionStorage.getItem('fmo.expiresAt')); return token && user && expiresAt > Date.now() ? { accessToken: token, user: JSON.parse(user), expiresAt } : null; } catch { return null; } })(); let rotation: Promise<Session> | null = null;
 const listeners = new Set<() => void>();
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('fmo-session-control') : null;
@@ -30,7 +31,8 @@ function accept(reply: Reply) {
   if (!['ADMIN', 'SUPER_ADMIN'].includes(reply.user.role)) throw new ApiError(403, 'ADMIN_REQUIRED', 'Use an administrator account here. FMO accounts sign in on Android.');
   const value = { user: reply.user, accessToken: reply.accessToken, expiresAt: Date.now() + reply.expiresIn * 1000 }; changed(value); return value;
 }
-export async function login(employeeCode: string, password: string) {
+export async function login(employeeCode: string, password: string, remember = false) {
+  rememberSession = remember;
   return lock(async () => {
     localStorage.setItem(marker, '1');
     const reply = await read<Reply>(await raw('/api/auth/login', { method: 'POST', body: JSON.stringify({ employeeCode, password, client: 'web' }) }));
