@@ -5,7 +5,7 @@ compatibility_date = "2026-09-24"
 [[d1_databases]]
 binding = "DB"
 database_name = "fmo-tracking"
-database_id = "REPLACE_AFTER_CREATE"
+database_id = "39342278-cc31-4b0d-bb93-1519e23fae9c"
 
 [vars]
 CORS_ORIGINS = "https://dashboard.rajagohar.live"
