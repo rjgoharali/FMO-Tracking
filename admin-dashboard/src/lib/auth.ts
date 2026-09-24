@@ -3,6 +3,7 @@ export class ApiError extends Error { status: number; code: string; constructor(
 type Session = { user: User; accessToken: string; expiresAt: number };
 type Reply = { user: User; accessToken: string; expiresIn: number };
 const marker = 'fmo.web.authentication-interrupted';
+const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 let session: Session | null = null; let rotation: Promise<Session> | null = null;
 const listeners = new Set<() => void>();
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('fmo-session-control') : null;
@@ -16,7 +17,7 @@ async function lock<T>(work: () => Promise<T>) {
 }
 async function raw(path: string, options: RequestInit = {}, token?: string) {
   try {
-    return await fetch(path, { ...options, credentials: 'include', cache: 'no-store', signal: options.signal ?? AbortSignal.timeout(20000),
+    return await fetch(`${apiBase}${path}`, { ...options, credentials: 'include', cache: 'no-store', signal: options.signal ?? AbortSignal.timeout(20000),
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
   } catch { throw new ApiError(0, 'NETWORK', 'Unable to reach the server. Check your connection and try again.'); }
 }
