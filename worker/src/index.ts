@@ -57,7 +57,11 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     return reply({ totalFmos:Number(row?.total ?? 0), onDuty:Number(row?.onDuty ?? 0), checkedIn:0, currentlyTracking:0, offline:Number(row?.onDuty ?? 0), stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() });
     } catch { return reply({ totalFmos:0, onDuty:0, checkedIn:0, currentlyTracking:0, offline:0, stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() }); }
   }
-  if (url.pathname === '/api/fmos') return reply({ items: [], hasMore: false });
+  if (url.pathname === '/api/fmos') {
+    const rows = await env.DB.prepare(`SELECT id,employee_code,name,is_active,created_at FROM users WHERE role='FMO' ORDER BY name`).all<any>();
+    const items = rows.results.map((r:any) => ({ id:r.id, employeeCode:r.employee_code, name:r.name, isActive:!!r.is_active, isDemo:false, phone:null, email:null, createdAt:r.created_at }));
+    return reply({ items, hasMore:false });
+  }
   if (url.pathname === '/api/attendance' || url.pathname === '/api/reports/daily') return reply({ items: [], hasMore: false });
   if (url.pathname === '/api/settings') return reply({ settings: { organizationName: 'Field Monitoring Organization', timezone: 'Asia/Karachi', dutyDurationMinutes: 480, trackingIntervalSeconds: 30, staleAfterSeconds: 120, offlineAfterSeconds: 600, gpsAccuracyThresholdMeters: 100, automaticDutyEnd: true } });
   return reply({ code: 'NOT_IMPLEMENTED', error: 'Worker API migration is in progress.' }, 501);
