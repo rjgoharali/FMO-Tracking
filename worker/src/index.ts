@@ -1,6 +1,6 @@
 export interface Env { DB: D1Database; CORS_ORIGINS: string; }
 const json = (body: unknown, status = 200, origin = 'https://dashboard.rajagohar.live') => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,OPTIONS' } });
-const hash = async (password: string, salt: string, iterations = 120000) => {
+const hash = async (password: string, salt: string, iterations = 100000) => {
   const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations, hash: 'SHA-256' }, material, 256);
   return [...new Uint8Array(bits)].map(x => x.toString(16).padStart(2, '0')).join('');
