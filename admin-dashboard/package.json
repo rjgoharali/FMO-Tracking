@@ -5,10 +5,13 @@
   "dependencies": {
     "@googlemaps/js-api-loader": "2.1.1",
     "@googlemaps/markerclusterer": "2.6.2",
+    "@types/leaflet": "1.9.22",
     "firebase": "12.19.0",
+    "leaflet": "1.9.4",
     "lucide-react": "1.47.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-leaflet": "5.0.0",
     "socket.io-client": "4.8.3"
   },
   "devDependencies": {

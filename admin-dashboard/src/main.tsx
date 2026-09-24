@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import App from './App';
 import './styles.css';
+import 'leaflet/dist/leaflet.css';
 class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
