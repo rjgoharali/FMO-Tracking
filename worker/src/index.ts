@@ -13,7 +13,7 @@ const authUser = async (request: Request, env: Env) => {
 };
 export default { async fetch(request: Request, env: Env): Promise<Response> {
   const requestOrigin = request.headers.get('origin') ?? '';
-  const allowed = ['https://dashboard.rajagohar.live', 'https://fmo-tracking.pages.dev', 'https://637b944b.fmo-tracking.pages.dev'].includes(requestOrigin);
+  const allowed = ['https://dashboard.rajagohar.live', 'https://fmo-tracking.pages.dev', 'https://637b944b.fmo-tracking.pages.dev', 'https://c2073a93.fmo-tracking.pages.dev'].includes(requestOrigin);
   const origin = allowed ? requestOrigin : 'https://dashboard.rajagohar.live';
   if (request.method === 'OPTIONS') return json({}, 204, origin);
   const url = new URL(request.url);
