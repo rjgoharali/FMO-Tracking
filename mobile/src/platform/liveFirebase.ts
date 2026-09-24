@@ -17,6 +17,11 @@ export async function publishLocation(sessionId: string, point: FirebaseLocation
   return pointRef.key;
 }
 
+export async function publishDutySession(sessionId: string, fmoId: string) {
+  const user = await ensureFirebaseIdentity();
+  await set(ref(firebaseDatabase, `dutySessions/${sessionId}`), { uid: user.uid, fmoId, startedAt: new Date().toISOString() });
+}
+
 export async function publishAttendance(sessionId: string, record: { fmoId: string; checkInTime: string; latitude: number; longitude: number; accuracy: number }) {
   await ensureFirebaseIdentity();
   await set(ref(firebaseDatabase, `attendance/${sessionId}`), record);

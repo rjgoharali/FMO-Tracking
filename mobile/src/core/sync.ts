@@ -1,6 +1,6 @@
 import { ApiFailure, type Ack, type Attendance, type CurrentReply, type Duty, type Platform, type Session, type Transport, type User } from './types.ts';
 import { Repository } from './repository.ts';
-import { publishAttendance, publishLocation } from '../platform/liveFirebase';
+import { publishAttendance, publishDutySession, publishLocation } from '../platform/liveFirebase';
 
 export class SyncEngine {
   repo: Repository; api: Transport; platform: Platform;
@@ -22,6 +22,7 @@ export class SyncEngine {
       if (duty.phase === 'START_PENDING') {
         const result = await this.api.json<{ session: Session }>('/api/duty/start', 'POST', duty.start);
         contactedServer = true;
+        void publishDutySession(result.session.id, user.fmoId).catch(() => undefined);
         duty = await this.repo.update(duty.key, d => ({ ...d, session: result.session, phase: result.session.status === 'COMPLETED' ? 'COMPLETED' : 'PAUSED', canCollect: false,
           issue: result.session.status === 'ACTIVE' ? 'Duty confirmed. Tap Resume tracking if the service has not started.' : null }));
         // Foreground controller explicitly starts/resumes the native service.
