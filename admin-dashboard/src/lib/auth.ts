@@ -17,7 +17,7 @@ async function lock<T>(work: () => Promise<T>) {
 }
 async function raw(path: string, options: RequestInit = {}, token?: string) {
   try {
-    return await fetch(`${apiBase}${path}`, { ...options, credentials: 'include', cache: 'no-store', signal: options.signal ?? AbortSignal.timeout(20000),
+    return await fetch(`${apiBase}${path}`, { ...options, credentials: 'omit', cache: 'no-store', signal: options.signal ?? AbortSignal.timeout(20000),
       headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
   } catch { throw new ApiError(0, 'NETWORK', 'Unable to reach the server. Check your connection and try again.'); }
 }
