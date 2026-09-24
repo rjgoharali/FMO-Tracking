@@ -21,6 +21,7 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   if (url.pathname === '/health/live') return reply({ status: 'ok', service: 'fmo-worker' }, 200, origin);
   if (url.pathname === '/health/ready') { try { await env.DB.prepare('SELECT 1').first(); return reply({ status: 'ready' }); } catch { return reply({ status: 'unready' }, 503); } }
   if (url.pathname === '/api/auth/login' && request.method === 'POST') {
+    try {
     const input = await request.json<{ employeeCode?: string; password?: string }>().catch(() => null);
     if (!input?.employeeCode || !input.password) return reply({ code: 'INVALID_CREDENTIALS', error: 'Employee ID and password are required.' }, 400);
     const user = await env.DB.prepare('SELECT * FROM users WHERE lower(employee_code)=lower(?) AND is_active=1').bind(input.employeeCode.trim()).first<{ id: string; employee_code: string; name: string; role: string; password_hash: string }>();
@@ -31,6 +32,9 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     const accessToken = token();
     await env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,datetime(\'now\',\'+8 hours\'))').bind(accessToken, user.id).run();
     return reply({ accessToken, expiresIn: 28800, user: { id: user.id, employeeCode: user.employee_code, name: user.name, role: user.role } });
+    } catch (error) {
+      return reply({ code: 'LOGIN_ERROR', error: error instanceof Error ? error.message : 'Login failed.' }, 500);
+    }
   }
   if (url.pathname === '/api/auth/me' && request.method === 'GET') {
     const user = await authUser(request, env);
