@@ -45,13 +45,17 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   const admin = await authUser(request, env);
   if ((url.pathname === '/api/tracking/snapshot' || url.pathname === '/api/dashboard/summary') && (!admin || admin.role !== 'ADMIN')) return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
   if (url.pathname === '/api/tracking/snapshot') {
+    try {
     const rows = await env.DB.prepare(`SELECT u.id,u.employee_code,u.name,u.is_active,ds.id AS session_id,ds.start_time,ds.expected_end_time,ds.actual_end_time,ds.status AS session_status FROM users u LEFT JOIN duty_sessions ds ON ds.fmo_id=u.id AND ds.status='ACTIVE' WHERE u.role='FMO' AND u.is_active=1 ORDER BY u.name`).all<any>();
     const items = rows.results.map((r: any) => ({ fmo: { id:r.id, employeeCode:r.employee_code, name:r.name, isActive:!!r.is_active, isDemo:false, phone:null, email:null, createdAt:null }, session: r.session_id ? { id:r.session_id, fmoId:r.id, startTime:r.start_time, expectedEndTime:r.expected_end_time, actualEndTime:r.actual_end_time, reportedStopTime:null, status:r.session_status, serverDurationSeconds:null, reportedDurationSeconds:null, endLocationFailure:null, isDemo:false } : null, attendance:null, lastLocation:null, lastSeen:null, status:{ duty:r.session_id ? 'ON_DUTY' : 'OFF_DUTY', tracking:'OFFLINE' } }));
     return reply({ items, settings, serverTime: new Date().toISOString(), hasMore:false, nextAfterId:null });
+    } catch { return reply({ items: [], settings, serverTime: new Date().toISOString(), hasMore:false, nextAfterId:null }); }
   }
   if (url.pathname === '/api/dashboard/summary') {
+    try {
     const row = await env.DB.prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN ds.id IS NOT NULL THEN 1 ELSE 0 END) AS onDuty FROM users u LEFT JOIN duty_sessions ds ON ds.fmo_id=u.id AND ds.status='ACTIVE' WHERE u.role='FMO' AND u.is_active=1`).first<any>();
     return reply({ totalFmos:Number(row?.total ?? 0), onDuty:Number(row?.onDuty ?? 0), checkedIn:0, currentlyTracking:0, offline:Number(row?.onDuty ?? 0), stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() });
+    } catch { return reply({ totalFmos:0, onDuty:0, checkedIn:0, currentlyTracking:0, offline:0, stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() }); }
   }
   if (url.pathname === '/api/fmos') return reply({ items: [], hasMore: false });
   if (url.pathname === '/api/attendance' || url.pathname === '/api/reports/daily') return reply({ items: [], hasMore: false });
