@@ -1,0 +1,44 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).child('admin').val() === true)",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "roles": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false
+      }
+    },
+    "fmos": {
+      "$fmoId": {
+        ".read": "auth != null && root.child('roles').child(auth.uid).child('admin').val() === true",
+        ".write": "auth != null && root.child('roles').child(auth.uid).child('admin').val() === true"
+      }
+    },
+    "dutySessions": {
+      "$sessionId": {
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('roles').child(auth.uid).child('admin').val() === true)",
+        ".write": "auth != null && (newData.child('uid').val() === auth.uid || root.child('roles').child(auth.uid).child('admin').val() === true)"
+      }
+    },
+    "locations": {
+      "$sessionId": {
+        "$pointId": {
+          ".read": "auth != null && (root.child('dutySessions').child($sessionId).child('uid').val() === auth.uid || root.child('roles').child(auth.uid).child('admin').val() === true)",
+          ".write": "auth != null && root.child('dutySessions').child($sessionId).child('uid').val() === auth.uid"
+        }
+      }
+    },
+    "attendance": {
+      "$attendanceId": {
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('roles').child(auth.uid).child('admin').val() === true)",
+        ".write": "auth != null && newData.child('uid').val() === auth.uid"
+      }
+    }
+  }
+}
