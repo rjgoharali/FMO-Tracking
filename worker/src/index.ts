@@ -16,7 +16,7 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   const allowed = requestOrigin === 'https://dashboard.rajagohar.live' || /^https:\/\/[a-z0-9-]+\.fmo-tracking\.pages\.dev$/.test(requestOrigin);
   const origin = allowed ? requestOrigin : 'https://dashboard.rajagohar.live';
   const reply = (body: unknown, status = 200) => json(body, status, origin);
-  if (request.method === 'OPTIONS') return reply({}, 204, origin);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,OPTIONS' } });
   const url = new URL(request.url);
   if (url.pathname === '/health/live') return reply({ status: 'ok', service: 'fmo-worker' }, 200, origin);
   if (url.pathname === '/health/ready') { try { await env.DB.prepare('SELECT 1').first(); return reply({ status: 'ready' }); } catch { return reply({ status: 'unready' }, 503); } }
