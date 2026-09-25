@@ -14,6 +14,5 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-sqlite', 'expo-secure-store', './plugins/with-network-policy.cjs',
     ],
     extra: { developmentBuild: development, eas: { projectId: 'b525d7b3-e47b-4844-bb13-6a06a9d8e152' } },
-    cli: { appVersionSource: 'remote' } as any,
   };
 };
