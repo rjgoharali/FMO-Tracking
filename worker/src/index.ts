@@ -1,4 +1,4 @@
-export interface Env { DB: D1Database; CORS_ORIGINS: string; SELFIES: R2Bucket; }
+export interface Env { DB: D1Database; CORS_ORIGINS: string; }
 const json = (body: unknown, status = 200, origin = 'https://dashboard.rajagohar.live') => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' } });
 const hash = async (password: string, salt: string, iterations = 100000) => {
   const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -75,15 +75,15 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   }
   if (url.pathname === '/api/duty/check-in' && request.method === 'POST') {
     const user = await authUser(request, env); if (!user || user.role !== 'FMO') return reply({ code:'UNAUTHORIZED', error:'FMO session required.' }, 401);
-    const form = await request.formData().catch(() => null); let metadata:any = null; try { metadata = JSON.parse(String(form?.get('metadata') ?? '')); } catch { return reply({ code:'INVALID_REQUEST', error:'Check-in metadata is required.' }, 400); }
+    const contentType = request.headers.get('content-type') ?? ''; let metadata:any = null;
+    if (contentType.includes('application/json')) metadata = await request.json<any>().catch(() => null);
+    else { const form = await request.formData().catch(() => null); try { metadata = JSON.parse(String(form?.get('metadata') ?? '')); } catch { return reply({ code:'INVALID_REQUEST', error:'Check-in metadata is required.' }, 400); } }
     const session = await env.DB.prepare(`SELECT id FROM duty_sessions WHERE id=? AND fmo_id=? AND status='ACTIVE'`).bind(metadata?.dutySessionId,user.id).first<any>();
     if (!session || !metadata?.challengeToken || !metadata?.location) return reply({ code:'CHECK_IN_NOT_ALLOWED', error:'Valid active duty and live challenge are required.' }, 409);
     const existing = await env.DB.prepare('SELECT * FROM attendance WHERE duty_session_id=?').bind(session.id).first<any>(); if (existing && !existing.superseded_at) return reply({ attendance:{ id:existing.id, dutySessionId:existing.duty_session_id, fmoId:existing.fmo_id, checkInTime:existing.check_in_time, latitude:existing.latitude, longitude:existing.longitude, accuracy:existing.accuracy } });
     const point = metadata.location; const id = existing?.id ?? crypto.randomUUID(); const checkInTime = new Date().toISOString();
-    const selfie = form?.get('selfie'); const selfieKey = `attendance/${user.id}/${id}.jpg`;
-    if (selfie && typeof selfie !== 'string') await env.SELFIES.put(selfieKey, selfie.stream(), { httpMetadata:{ contentType:'image/jpeg' } });
-    if (existing) await env.DB.prepare('UPDATE attendance SET check_in_time=?,selfie_path=?,latitude=?,longitude=?,accuracy=?,superseded_at=NULL WHERE id=?').bind(checkInTime,selfieKey,point.latitude,point.longitude,point.accuracy,id).run();
-    else await env.DB.prepare('INSERT INTO attendance(id,duty_session_id,fmo_id,check_in_time,selfie_path,latitude,longitude,accuracy) VALUES(?,?,?,?,?,?,?,?)').bind(id,session.id,user.id,checkInTime,selfieKey,point.latitude,point.longitude,point.accuracy).run();
+    if (existing) await env.DB.prepare('UPDATE attendance SET check_in_time=?,selfie_path=NULL,latitude=?,longitude=?,accuracy=?,superseded_at=NULL WHERE id=?').bind(checkInTime,point.latitude,point.longitude,point.accuracy,id).run();
+    else await env.DB.prepare('INSERT INTO attendance(id,duty_session_id,fmo_id,check_in_time,selfie_path,latitude,longitude,accuracy) VALUES(?,?,?,?,?,?,?,?)').bind(id,session.id,user.id,checkInTime,null,point.latitude,point.longitude,point.accuracy).run();
     return reply({ attendance:{ id, dutySessionId:session.id, fmoId:user.id, checkInTime, latitude:point.latitude, longitude:point.longitude, accuracy:point.accuracy } });
   }
   if (url.pathname === '/api/duty/location' && request.method === 'POST') {
@@ -166,9 +166,7 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   const selfieMatch = url.pathname.match(/^\/api\/attendance\/([^/]+)\/selfie$/);
   if (selfieMatch && request.method === 'GET') {
     const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
-    const row = await env.DB.prepare('SELECT selfie_path FROM attendance WHERE id=?').bind(selfieMatch[1]).first<any>(); if (!row?.selfie_path) return reply({ code:'NOT_FOUND', error:'Selfie evidence unavailable.' }, 404);
-    const object = await env.SELFIES.get(row.selfie_path); if (!object) return reply({ code:'NOT_FOUND', error:'Selfie evidence unavailable.' }, 404);
-    return new Response(object.body, { headers:{ 'content-type': object.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control':'private, no-store', 'access-control-allow-origin':origin } });
+    return reply({ code:'NOT_FOUND', error:'Selfie evidence has been disabled.' }, 404);
   }
   if (attendanceMatch && request.method === 'GET') {
     const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);

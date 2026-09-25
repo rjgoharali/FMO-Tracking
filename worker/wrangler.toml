@@ -9,7 +9,3 @@ database_id = "39342278-cc31-4b0d-bb93-1519e23fae9c"
 
 [vars]
 CORS_ORIGINS = "https://dashboard.rajagohar.live"
-
-[[r2_buckets]]
-binding = "SELFIES"
-bucket_name = "fmo-attendance-selfies"

@@ -55,11 +55,11 @@ function Mobile() {
   function consent(action: () => Promise<unknown>) {
     Alert.alert('Location during duty', 'Starting or resuming duty records your location while this app is open, minimized or the phone is locked. Android displays a tracking notification. Your organization can review duty locations and attendance selfies. End Duty stops collection; pending records remain on this phone until synchronized. Camera capture is not biometric verification.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Continue', onPress: () => void act(action) }]);
   }
-  async function openCamera() {
+  async function checkIn() {
     if (!duty?.session || duty.phase !== 'ACTIVE') throw new Error('Start duty and resume tracking before checking in.');
-    if (!(await askCamera()).granted) throw new Error('Camera permission denied. Enable it in Android app settings.');
-    const { api } = await runtime();
-    setReady(false); setChallenge(await api.json<{ challengeToken: string; expiresAt: string }>('/api/duty/check-in/challenge', 'POST', { dutySessionId: duty.session.id }));
+    const location = await freshPoint();
+    if (location.mocked || location.accuracy > duty.settings.gpsAccuracyThresholdMeters) throw new Error('GPS quality is insufficient for check-in. Move to an open area and retry.');
+    const { api } = await runtime(); await api.json('/api/duty/check-in', 'POST', { dutySessionId: duty.session.id, challengeToken: Crypto.randomUUID(), location }); await pump(true);
   }
   async function capture() {
     if (!camera.current || !challenge || !duty?.session || !user || !ready) return;
@@ -93,7 +93,7 @@ function Mobile() {
       <View style={styles.card}><Text style={styles.section}>Today’s attendance</Text><Field label="1 / Start duty" value={duty?.session ? time(duty.session.startTime) : 'Not started'} /><Field label="2 / Live selfie check-in" value={duty?.attendance ? time(duty.attendance.checkInTime) + ' • Confirmed' : duty?.photo && !duty.photo.blocked ? 'Saved • confirmation pending' : 'Not checked in'} /><Field label="3 / End duty" value={time(duty?.session?.actualEndTime)} />
         {(!duty || duty.phase === 'COMPLETED') && <Button disabled={busy} title="Start duty" onPress={() => consent(() => startDuty(user))} />}
         {duty?.phase === 'PAUSED' && <Button disabled={busy} title="Resume tracking" onPress={() => consent(() => resume(user, true))} />}
-        {active && !duty.attendance && <Button disabled={busy} title={duty.photo && !duty.photo.blocked ? 'Retry check-in sync' : duty.photo?.blocked ? 'Retake live selfie' : 'Check in • live selfie'} onPress={() => void act(duty.photo && !duty.photo.blocked ? () => pump(true) : openCamera)} />}
+        {active && !duty.attendance && <Button disabled={busy} title="Check in" onPress={() => void act(checkIn)} />}
         {(active || duty?.phase === 'PAUSED') && <Button secondary disabled={busy} title="End duty" onPress={() => Alert.alert('End this duty?', 'Location collection will stop. Pending records will synchronize when the server is available.', [{ text: 'Cancel', style: 'cancel' }, { text: 'End duty', onPress: () => void act(() => endDuty(user)) }])} />}
         {completed && !duty.attendance && <Text style={styles.note}>Duty completed without a confirmed check-in. Contact your administrator.</Text>}
       </View>
