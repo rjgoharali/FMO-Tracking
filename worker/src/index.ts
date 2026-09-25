@@ -1,5 +1,5 @@
 export interface Env { DB: D1Database; CORS_ORIGINS: string; }
-const json = (body: unknown, status = 200, origin = 'https://dashboard.rajagohar.live') => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,OPTIONS' } });
+const json = (body: unknown, status = 200, origin = 'https://dashboard.rajagohar.live') => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' } });
 const hash = async (password: string, salt: string, iterations = 100000) => {
   const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations, hash: 'SHA-256' }, material, 256);
@@ -16,7 +16,7 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   const allowed = requestOrigin === 'https://dashboard.rajagohar.live' || /^https:\/\/[a-z0-9-]+\.fmo-tracking\.pages\.dev$/.test(requestOrigin);
   const origin = allowed ? requestOrigin : 'https://dashboard.rajagohar.live';
   const reply = (body: unknown, status = 200) => json(body, status, origin);
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,OPTIONS' } });
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin, 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' } });
   const url = new URL(request.url);
   if (url.pathname === '/health/live') return reply({ status: 'ok', service: 'fmo-worker' }, 200, origin);
   if (url.pathname === '/health/ready') { try { await env.DB.prepare('SELECT 1').first(); return reply({ status: 'ready' }); } catch { return reply({ status: 'unready' }, 503); } }
@@ -94,9 +94,25 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     return reply({ totalFmos:Number(row?.total ?? 0), onDuty:Number(row?.onDuty ?? 0), checkedIn:0, currentlyTracking:0, offline:Number(row?.onDuty ?? 0), stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() });
     } catch { return reply({ totalFmos:0, onDuty:0, checkedIn:0, currentlyTracking:0, offline:0, stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() }); }
   }
+  if (url.pathname === '/api/fmos' && request.method === 'POST') {
+    const admin = await authUser(request, env); if (!admin || admin.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const body = await request.json<any>().catch(() => null); if (!body?.employeeCode || !body?.name || !body?.password) return reply({ code:'INVALID_REQUEST', error:'Employee ID, name and password are required.' }, 400);
+    const exists = await env.DB.prepare('SELECT id FROM users WHERE lower(employee_code)=lower(?)').bind(body.employeeCode.trim()).first(); if (exists) return reply({ code:'DUPLICATE_EMPLOYEE_CODE', error:'Employee / FMO ID already exists.' }, 409);
+    const salt = crypto.randomUUID().replaceAll('-',''); const passwordHash = `pbkdf2$100000$${salt}$${await hash(body.password, salt, 100000)}`; const id = crypto.randomUUID();
+    await env.DB.prepare('INSERT INTO users(id,employee_code,name,role,password_hash,is_active,phone,email,created_at) VALUES(?,?,?,?,?,?,?,?,datetime(\'now\'))').bind(id,body.employeeCode.trim().toUpperCase(),body.name.trim(),'FMO',passwordHash,1,body.phone ?? null,body.email ?? null).run();
+    return reply({ id, employeeCode:body.employeeCode.trim().toUpperCase(), name:body.name.trim(), isActive:true, isDemo:false, phone:body.phone ?? null, email:body.email ?? null });
+  }
+  const fmoMatch = url.pathname.match(/^\/api\/fmos\/([^/]+)$/);
+  if (fmoMatch && request.method === 'PATCH') {
+    const admin = await authUser(request, env); if (!admin || admin.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const body = await request.json<any>().catch(() => null); const current = await env.DB.prepare('SELECT id FROM users WHERE id=? AND role=\'FMO\'').bind(fmoMatch[1]).first(); if (!current) return reply({ code:'NOT_FOUND', error:'FMO not found.' }, 404);
+    if (body?.password) { const salt=crypto.randomUUID().replaceAll('-',''); await env.DB.prepare('UPDATE users SET password_hash=? WHERE id=?').bind(`pbkdf2$100000$${salt}$${await hash(body.password,salt,100000)}`,fmoMatch[1]).run(); }
+    await env.DB.prepare('UPDATE users SET name=COALESCE(?,name),is_active=COALESCE(?,is_active),phone=COALESCE(?,phone),email=COALESCE(?,email) WHERE id=?').bind(body?.name ?? null, body?.isActive === undefined ? null : (body.isActive ? 1 : 0), body?.phone ?? null, body?.email ?? null, fmoMatch[1]).run();
+    return reply({ ok:true });
+  }
   if (url.pathname === '/api/fmos' && request.method === 'GET') {
-    const rows = await env.DB.prepare(`SELECT id,employee_code,name,is_active,created_at FROM users WHERE role='FMO' ORDER BY name`).all<any>();
-    const items = rows.results.map((r:any) => ({ id:r.id, employeeCode:r.employee_code, name:r.name, isActive:!!r.is_active, isDemo:false, phone:null, email:null, createdAt:r.created_at }));
+    const rows = await env.DB.prepare(`SELECT id,employee_code,name,is_active,phone,email,created_at FROM users WHERE role='FMO' ORDER BY name`).all<any>();
+    const items = rows.results.map((r:any) => ({ id:r.id, employeeCode:r.employee_code, name:r.name, isActive:!!r.is_active, isDemo:false, phone:r.phone ?? null, email:r.email ?? null, createdAt:r.created_at }));
     return reply({ items, hasMore:false });
   }
   if (url.pathname === '/api/attendance' && request.method === 'GET') {
