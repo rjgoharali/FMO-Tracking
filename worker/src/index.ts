@@ -94,12 +94,21 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     return reply({ totalFmos:Number(row?.total ?? 0), onDuty:Number(row?.onDuty ?? 0), checkedIn:0, currentlyTracking:0, offline:Number(row?.onDuty ?? 0), stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() });
     } catch { return reply({ totalFmos:0, onDuty:0, checkedIn:0, currentlyTracking:0, offline:0, stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() }); }
   }
-  if (url.pathname === '/api/fmos') {
+  if (url.pathname === '/api/fmos' && request.method === 'GET') {
     const rows = await env.DB.prepare(`SELECT id,employee_code,name,is_active,created_at FROM users WHERE role='FMO' ORDER BY name`).all<any>();
     const items = rows.results.map((r:any) => ({ id:r.id, employeeCode:r.employee_code, name:r.name, isActive:!!r.is_active, isDemo:false, phone:null, email:null, createdAt:r.created_at }));
     return reply({ items, hasMore:false });
   }
-  if (url.pathname === '/api/attendance' || url.pathname === '/api/reports/daily') return reply({ items: [], hasMore: false });
+  if (url.pathname === '/api/attendance' && request.method === 'GET') {
+    const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const rows = await env.DB.prepare(`SELECT a.id,a.duty_session_id,a.fmo_id,a.check_in_time,a.accuracy,a.latitude,a.longitude,u.name,u.employee_code,ds.start_time,ds.actual_end_time FROM attendance a JOIN users u ON u.id=a.fmo_id JOIN duty_sessions ds ON ds.id=a.duty_session_id ORDER BY a.check_in_time DESC LIMIT 100`).all<any>();
+    return reply({ items: rows.results.map((r:any)=>({ id:r.id, dutySessionId:r.duty_session_id, fmoId:r.fmo_id, checkInTime:r.check_in_time, accuracy:r.accuracy, latitude:r.latitude, longitude:r.longitude, verificationStatus:'NOT_VERIFIED', isDemo:false, supersededAt:null, resetReason:null, name:r.name, employeeCode:r.employee_code, dutyStart:r.start_time, dutyEnd:r.actual_end_time, trackingStatus:'UNKNOWN', serverDurationSeconds:null })), hasMore:false });
+  }
+  if (url.pathname === '/api/reports/daily' && request.method === 'GET') {
+    const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const rows = await env.DB.prepare(`SELECT u.id fmo_id,u.employee_code,u.name,ds.id duty_session_id,ds.start_time,ds.actual_end_time,a.check_in_time FROM users u LEFT JOIN duty_sessions ds ON ds.fmo_id=u.id LEFT JOIN attendance a ON a.duty_session_id=ds.id WHERE u.role='FMO' AND u.is_active=1 ORDER BY u.name`).all<any>();
+    return reply({ items: rows.results.map((r:any)=>({ fmoId:r.fmo_id, employeeCode:r.employee_code, name:r.name, isDemo:false, dutySessionId:r.duty_session_id, startTime:r.start_time, checkInTime:r.check_in_time, actualEndTime:r.actual_end_time, reportedStopTime:null, serverDurationSeconds:null, reportedDurationSeconds:null, lastSeen:null, accuracy:null, status:{duty:r.duty_session_id?'ON_DUTY':'NOT_STARTED',tracking:'OFFLINE'} })), hasMore:false, date:url.searchParams.get('date'), timezone:settings.timezone, serverTime:new Date().toISOString() });
+  }
   if (url.pathname === '/api/settings') return reply({ settings: { organizationName: 'Field Monitoring Organization', timezone: 'Asia/Karachi', dutyDurationMinutes: 480, trackingIntervalSeconds: 30, staleAfterSeconds: 120, offlineAfterSeconds: 600, gpsAccuracyThresholdMeters: 100, automaticDutyEnd: true } });
   return reply({ code: 'NOT_IMPLEMENTED', error: 'Worker API migration is in progress.' }, 501);
 } };
