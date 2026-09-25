@@ -3,7 +3,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const development = process.env.APP_VARIANT !== 'production';
   const api = process.env.EXPO_PUBLIC_API_URL ?? '';
   if (!development && !api.startsWith('https://')) throw new Error('Production builds require EXPO_PUBLIC_API_URL with HTTPS');
-  return { ...config, name: development ? 'FMO Field · Dev' : 'FMO Field', slug: 'fmo-field', version: '0.3.0', orientation: 'portrait',
+  return { ...config, name: development ? 'FMO Field · Dev' : 'FMO Field', slug: 'fmo-field-mobile', version: '0.3.0', orientation: 'portrait',
     platforms: ['android'], userInterfaceStyle: 'light', scheme: 'fmofield',
     android: { package: development ? 'org.fieldoperations.fmo.dev' : 'org.fieldoperations.fmo', versionCode: 3,
       allowBackup: false, permissions: ['android.permission.POST_NOTIFICATIONS'],
