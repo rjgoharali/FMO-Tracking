@@ -31,7 +31,7 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     if (!expected || actual !== expected) return reply({ code: 'INVALID_CREDENTIALS', error: 'Invalid credentials.' }, 401);
     const accessToken = token();
     await env.DB.prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,datetime(\'now\',\'+8 hours\'))').bind(accessToken, user.id).run();
-    return reply({ accessToken, expiresIn: 28800, user: { id: user.id, employeeCode: user.employee_code, name: user.name, role: user.role } });
+    return reply({ accessToken, refreshToken: accessToken, expiresIn: 28800, user: { id: user.id, employeeCode: user.employee_code, name: user.name, role: user.role } });
     } catch (error) {
       return reply({ code: 'LOGIN_ERROR', error: error instanceof Error ? error.message : 'Login failed.' }, 500);
     }
@@ -40,6 +40,16 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     const user = await authUser(request, env);
     if (!user) return reply({ code: 'UNAUTHORIZED', error: 'Session expired.' }, 401);
     return reply({ user: { id: user.id, employeeCode: user.employee_code, name: user.name, role: user.role } });
+  }
+  if (url.pathname === '/api/auth/refresh' && request.method === 'POST') {
+    const input = await request.json<{ refreshToken?: string }>().catch(() => null);
+    const value = input?.refreshToken;
+    if (!value) return reply({ code:'LOGIN_REQUIRED', error:'Refresh token required.' }, 401);
+    const user = await env.DB.prepare(`SELECT u.id,u.employee_code,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>datetime('now') AND u.is_active=1`).bind(value).first<any>();
+    if (!user) return reply({ code:'LOGIN_REQUIRED', error:'Session expired.' }, 401);
+    const accessToken = token();
+    await env.DB.prepare('UPDATE sessions SET token_hash=?,expires_at=datetime(\'now\',\'+8 hours\') WHERE token_hash=?').bind(accessToken, value).run();
+    return reply({ accessToken, refreshToken: accessToken, expiresIn: 28800, user: { id:user.id, employeeCode:user.employee_code, name:user.name, role:user.role } });
   }
   const settings = { organizationName: 'Field Monitoring Organization', timezone: 'Asia/Karachi', dutyDurationMinutes: 480, trackingIntervalSeconds: 30, staleAfterSeconds: 120, offlineAfterSeconds: 600, gpsAccuracyThresholdMeters: 100, automaticDutyEnd: true };
   const admin = await authUser(request, env);
