@@ -78,9 +78,10 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     const form = await request.formData().catch(() => null); let metadata:any = null; try { metadata = JSON.parse(String(form?.get('metadata') ?? '')); } catch { return reply({ code:'INVALID_REQUEST', error:'Check-in metadata is required.' }, 400); }
     const session = await env.DB.prepare(`SELECT id FROM duty_sessions WHERE id=? AND fmo_id=? AND status='ACTIVE'`).bind(metadata?.dutySessionId,user.id).first<any>();
     if (!session || !metadata?.challengeToken || !metadata?.location) return reply({ code:'CHECK_IN_NOT_ALLOWED', error:'Valid active duty and live challenge are required.' }, 409);
-    const existing = await env.DB.prepare('SELECT * FROM attendance WHERE duty_session_id=?').bind(session.id).first<any>(); if (existing) return reply({ attendance:{ id:existing.id, dutySessionId:existing.duty_session_id, fmoId:existing.fmo_id, checkInTime:existing.check_in_time, latitude:existing.latitude, longitude:existing.longitude, accuracy:existing.accuracy } });
-    const point = metadata.location; const id = crypto.randomUUID(); const checkInTime = new Date().toISOString();
-    await env.DB.prepare('INSERT INTO attendance(id,duty_session_id,fmo_id,check_in_time,selfie_path,latitude,longitude,accuracy) VALUES(?,?,?,?,?,?,?,?)').bind(id,session.id,user.id,checkInTime,'pending-upload',point.latitude,point.longitude,point.accuracy).run();
+    const existing = await env.DB.prepare('SELECT * FROM attendance WHERE duty_session_id=?').bind(session.id).first<any>(); if (existing && !existing.superseded_at) return reply({ attendance:{ id:existing.id, dutySessionId:existing.duty_session_id, fmoId:existing.fmo_id, checkInTime:existing.check_in_time, latitude:existing.latitude, longitude:existing.longitude, accuracy:existing.accuracy } });
+    const point = metadata.location; const id = existing?.id ?? crypto.randomUUID(); const checkInTime = new Date().toISOString();
+    if (existing) await env.DB.prepare('UPDATE attendance SET check_in_time=?,selfie_path=?,latitude=?,longitude=?,accuracy=?,superseded_at=NULL WHERE id=?').bind(checkInTime,'pending-upload',point.latitude,point.longitude,point.accuracy,id).run();
+    else await env.DB.prepare('INSERT INTO attendance(id,duty_session_id,fmo_id,check_in_time,selfie_path,latitude,longitude,accuracy) VALUES(?,?,?,?,?,?,?,?)').bind(id,session.id,user.id,checkInTime,'pending-upload',point.latitude,point.longitude,point.accuracy).run();
     return reply({ attendance:{ id, dutySessionId:session.id, fmoId:user.id, checkInTime, latitude:point.latitude, longitude:point.longitude, accuracy:point.accuracy } });
   }
   if (url.pathname === '/api/duty/location' && request.method === 'POST') {
