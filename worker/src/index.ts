@@ -155,8 +155,9 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   }
   if (url.pathname === '/api/attendance' && request.method === 'GET') {
     const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
-    const rows = await env.DB.prepare(`SELECT a.id,a.duty_session_id,a.fmo_id,a.check_in_time,a.accuracy,a.latitude,a.longitude,u.name,u.employee_code,ds.start_time,ds.actual_end_time FROM attendance a JOIN users u ON u.id=a.fmo_id JOIN duty_sessions ds ON ds.id=a.duty_session_id ORDER BY a.check_in_time DESC LIMIT 100`).all<any>();
-    return reply({ items: rows.results.map((r:any)=>({ id:r.id, dutySessionId:r.duty_session_id, fmoId:r.fmo_id, checkInTime:r.check_in_time, accuracy:r.accuracy, latitude:r.latitude, longitude:r.longitude, verificationStatus:'NOT_VERIFIED', isDemo:false, supersededAt:null, resetReason:null, name:r.name, employeeCode:r.employee_code, dutyStart:r.start_time, dutyEnd:r.actual_end_time, trackingStatus:'UNKNOWN', serverDurationSeconds:null })), hasMore:false });
+    const date = url.searchParams.get('date'); const fmoId = url.searchParams.get('fmoId');
+    const rows = await env.DB.prepare(`SELECT a.id,a.duty_session_id,a.fmo_id,a.check_in_time,a.accuracy,a.latitude,a.longitude,a.superseded_at,a.reset_reason,u.name,u.employee_code,ds.start_time,ds.actual_end_time FROM attendance a JOIN users u ON u.id=a.fmo_id JOIN duty_sessions ds ON ds.id=a.duty_session_id WHERE (? IS NULL OR date(a.check_in_time)=?) AND (? IS NULL OR a.fmo_id=?) ORDER BY a.check_in_time DESC LIMIT 100`).bind(date,date,fmoId,fmoId).all<any>();
+    return reply({ items: rows.results.map((r:any)=>({ id:r.id, dutySessionId:r.duty_session_id, fmoId:r.fmo_id, checkInTime:r.check_in_time, accuracy:r.accuracy, latitude:r.latitude, longitude:r.longitude, verificationStatus:'NOT_VERIFIED', isDemo:false, supersededAt:r.superseded_at ?? null, resetReason:r.reset_reason ?? null, name:r.name, employeeCode:r.employee_code, dutyStart:r.start_time, dutyEnd:r.actual_end_time, trackingStatus:'UNKNOWN', serverDurationSeconds:null })), hasMore:false });
   }
   const attendanceMatch = url.pathname.match(/^\/api\/attendance\/([^/]+)$/);
   if (attendanceMatch && request.method === 'GET') {
