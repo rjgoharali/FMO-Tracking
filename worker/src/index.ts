@@ -51,6 +51,33 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     await env.DB.prepare('UPDATE sessions SET token_hash=?,expires_at=datetime(\'now\',\'+8 hours\') WHERE token_hash=?').bind(accessToken, value).run();
     return reply({ accessToken, refreshToken: accessToken, expiresIn: 28800, user: { id:user.id, employeeCode:user.employee_code, name:user.name, role:user.role } });
   }
+  if (url.pathname === '/api/duty/current' && request.method === 'GET') {
+    const user = await authUser(request, env); if (!user || user.role !== 'FMO') return reply({ code:'UNAUTHORIZED', error:'FMO session required.' }, 401);
+    const session = await env.DB.prepare(`SELECT * FROM duty_sessions WHERE fmo_id=? AND status='ACTIVE' LIMIT 1`).bind(user.id).first<any>();
+    const attendance = session ? await env.DB.prepare('SELECT * FROM attendance WHERE duty_session_id=? ORDER BY check_in_time DESC LIMIT 1').bind(session.id).first<any>() : null;
+    return reply({ session, attendance, lastLocation:null, settings, trackingAuthorized:!!session });
+  }
+  if (url.pathname === '/api/duty/start' && request.method === 'POST') {
+    const user = await authUser(request, env); if (!user || user.role !== 'FMO') return reply({ code:'UNAUTHORIZED', error:'FMO session required.' }, 401);
+    const body = await request.json<any>().catch(() => null); if (!body?.requestId) return reply({ code:'INVALID_REQUEST', error:'requestId is required.' }, 400);
+    const active = await env.DB.prepare(`SELECT * FROM duty_sessions WHERE fmo_id=? AND status='ACTIVE' LIMIT 1`).bind(user.id).first<any>();
+    if (active) return reply({ session:active, trackingAuthorized:true });
+    const now = new Date(); const id = crypto.randomUUID(); const end = new Date(now.getTime() + settings.dutyDurationMinutes * 60000);
+    await env.DB.prepare('INSERT INTO duty_sessions(id,fmo_id,start_time,expected_end_time,status) VALUES(?,?,?,?,?)').bind(id,user.id,now.toISOString(),end.toISOString(),'ACTIVE').run();
+    const point = body.location; if (point?.clientPointId) await env.DB.prepare('INSERT OR IGNORE INTO location_logs(id,duty_session_id,fmo_id,latitude,longitude,accuracy,speed,battery_level,recorded_at,client_point_id) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,user.id,point.latitude,point.longitude,point.accuracy,point.speed ?? null,point.batteryLevel ?? null,point.recordedAt ?? now.toISOString(),point.clientPointId).run();
+    return reply({ session:{ id, fmo_id:user.id, start_time:now.toISOString(), expected_end_time:end.toISOString(), status:'ACTIVE' }, trackingAuthorized:true });
+  }
+  if (url.pathname === '/api/duty/location' && request.method === 'POST') {
+    const user = await authUser(request, env); if (!user || user.role !== 'FMO') return reply({ code:'UNAUTHORIZED', error:'FMO session required.' }, 401);
+    const body = await request.json<any>().catch(() => null); const session = await env.DB.prepare(`SELECT id FROM duty_sessions WHERE id=? AND fmo_id=? AND status='ACTIVE'`).bind(body?.dutySessionId,user.id).first<any>(); if (!session) return reply({ code:'DUTY_NOT_ACTIVE', error:'Active duty session not found.' }, 409);
+    const acknowledgments = []; for (const [index, point] of (body?.points ?? []).entries()) { try { await env.DB.prepare('INSERT INTO location_logs(id,duty_session_id,fmo_id,latitude,longitude,accuracy,speed,battery_level,recorded_at,client_point_id) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),session.id,user.id,point.latitude,point.longitude,point.accuracy,point.speed ?? null,point.batteryLevel ?? null,point.recordedAt ?? new Date().toISOString(),point.clientPointId).run(); acknowledgments.push({index,clientPointId:point.clientPointId,status:'accepted'}); } catch { acknowledgments.push({index,clientPointId:point.clientPointId,status:'duplicate'}); } }
+    return reply({ acknowledgments, trackingIntervalSeconds:settings.trackingIntervalSeconds });
+  }
+  if (url.pathname === '/api/duty/end' && request.method === 'POST') {
+    const user = await authUser(request, env); if (!user || user.role !== 'FMO') return reply({ code:'UNAUTHORIZED', error:'FMO session required.' }, 401);
+    const body = await request.json<any>().catch(() => null); const session = await env.DB.prepare(`SELECT * FROM duty_sessions WHERE id=? AND fmo_id=? AND status='ACTIVE'`).bind(body?.dutySessionId,user.id).first<any>(); if (!session) return reply({ code:'DUTY_NOT_ACTIVE', error:'Active duty session not found.' }, 409);
+    const end = new Date().toISOString(); await env.DB.prepare(`UPDATE duty_sessions SET actual_end_time=?,status='COMPLETED' WHERE id=?`).bind(end,session.id).run(); return reply({ session:{...session,actual_end_time:end,status:'COMPLETED'}, trackingAuthorized:false });
+  }
   const settings = { organizationName: 'Field Monitoring Organization', timezone: 'Asia/Karachi', dutyDurationMinutes: 480, trackingIntervalSeconds: 30, staleAfterSeconds: 120, offlineAfterSeconds: 600, gpsAccuracyThresholdMeters: 100, automaticDutyEnd: true };
   const admin = await authUser(request, env);
   if ((url.pathname === '/api/tracking/snapshot' || url.pathname === '/api/dashboard/summary') && (!admin || admin.role !== 'ADMIN')) return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
