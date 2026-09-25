@@ -106,8 +106,9 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   }
   if (url.pathname === '/api/dashboard/summary') {
     try {
-    const row = await env.DB.prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN ds.id IS NOT NULL THEN 1 ELSE 0 END) AS onDuty FROM users u LEFT JOIN duty_sessions ds ON ds.fmo_id=u.id AND ds.status='ACTIVE' WHERE u.role='FMO' AND u.is_active=1`).first<any>();
-    return reply({ totalFmos:Number(row?.total ?? 0), onDuty:Number(row?.onDuty ?? 0), checkedIn:0, currentlyTracking:0, offline:Number(row?.onDuty ?? 0), stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() });
+    const row = await env.DB.prepare(`SELECT COUNT(*) AS total, SUM(CASE WHEN ds.id IS NOT NULL THEN 1 ELSE 0 END) AS onDuty, SUM(CASE WHEN a.id IS NOT NULL AND a.superseded_at IS NULL THEN 1 ELSE 0 END) AS checkedIn, SUM(CASE WHEN ds.id IS NOT NULL AND ll.recorded_at IS NOT NULL AND (julianday('now')-julianday(ll.recorded_at))*86400 <= 120 THEN 1 ELSE 0 END) AS tracking, SUM(CASE WHEN ds.id IS NULL OR ll.recorded_at IS NULL OR (julianday('now')-julianday(ll.recorded_at))*86400 > 120 THEN 1 ELSE 0 END) AS offline FROM users u LEFT JOIN duty_sessions ds ON ds.fmo_id=u.id AND ds.status='ACTIVE' LEFT JOIN attendance a ON a.duty_session_id=ds.id LEFT JOIN location_logs ll ON ll.id=(SELECT id FROM location_logs WHERE fmo_id=u.id ORDER BY recorded_at DESC LIMIT 1) WHERE u.role='FMO' AND u.is_active=1`).first<any>();
+    const completed = await env.DB.prepare(`SELECT COUNT(*) AS count FROM duty_sessions WHERE status='COMPLETED' AND date(actual_end_time)=date('now')`).first<any>();
+    return reply({ totalFmos:Number(row?.total ?? 0), onDuty:Number(row?.onDuty ?? 0), checkedIn:Number(row?.checkedIn ?? 0), currentlyTracking:Number(row?.tracking ?? 0), offline:Number(row?.offline ?? 0), stale:0, completedDuty:Number(completed?.count ?? 0), timezone:settings.timezone, serverTime:new Date().toISOString() });
     } catch { return reply({ totalFmos:0, onDuty:0, checkedIn:0, currentlyTracking:0, offline:0, stale:0, completedDuty:0, timezone:settings.timezone, serverTime:new Date().toISOString() }); }
   }
   if (url.pathname === '/api/fmos' && request.method === 'POST') {
