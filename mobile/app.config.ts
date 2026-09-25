@@ -13,6 +13,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ['expo-camera', { cameraPermission: 'Capture a live selfie to confirm duty attendance.', recordAudioAndroid: false }],
       'expo-sqlite', 'expo-secure-store', './plugins/with-network-policy.cjs',
     ],
-    extra: { developmentBuild: development },
+    extra: { developmentBuild: development, eas: { projectId: 'f598e883-174f-47f0-83a6-08e0ccc5772b' } },
   };
 };
