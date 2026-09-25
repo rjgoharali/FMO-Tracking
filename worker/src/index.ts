@@ -119,6 +119,19 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     return reply({ id, employeeCode:body.employeeCode.trim().toUpperCase(), name:body.name.trim(), isActive:true, isDemo:false, phone:body.phone ?? null, email:body.email ?? null });
   }
   const fmoMatch = url.pathname.match(/^\/api\/fmos\/([^/]+)$/);
+  const sessionsMatch = url.pathname.match(/^\/api\/fmos\/([^/]+)\/sessions$/);
+  if (sessionsMatch && request.method === 'GET') {
+    const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const rows = await env.DB.prepare(`SELECT id,fmo_id,start_time,expected_end_time,actual_end_time,status FROM duty_sessions WHERE fmo_id=? ORDER BY start_time DESC LIMIT 100`).bind(sessionsMatch[1]).all<any>();
+    return reply({ items:rows.results.map((r:any)=>({ id:r.id,fmoId:r.fmo_id,startTime:r.start_time,expectedEndTime:r.expected_end_time,actualEndTime:r.actual_end_time,reportedStopTime:null,status:r.status,serverDurationSeconds:null,reportedDurationSeconds:null,endLocationFailure:null,isDemo:false })), hasMore:false });
+  }
+  const routeMatch = url.pathname.match(/^\/api\/fmos\/([^/]+)\/route$/);
+  if (routeMatch && request.method === 'GET') {
+    const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const sessionId = url.searchParams.get('dutySessionId'); if (!sessionId) return reply({ code:'INVALID_REQUEST', error:'dutySessionId is required.' }, 400);
+    const rows = await env.DB.prepare(`SELECT id,latitude,longitude,accuracy,speed,battery_level,recorded_at FROM location_logs WHERE fmo_id=? AND duty_session_id=? ORDER BY recorded_at ASC LIMIT 5000`).bind(routeMatch[1],sessionId).all<any>();
+    return reply({ points:rows.results.map((r:any)=>({ id:r.id,latitude:r.latitude,longitude:r.longitude,accuracy:r.accuracy,speed:r.speed,batteryLevel:r.battery_level,recordedAt:r.recorded_at,quality:r.accuracy <= 100 ? 'GOOD' : 'POOR',mocked:false })), hasMore:false, nextAfterId:'0' });
+  }
   if (fmoMatch && request.method === 'PATCH') {
     const admin = await authUser(request, env); if (!admin || admin.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
     const body = await request.json<any>().catch(() => null); const current = await env.DB.prepare('SELECT id FROM users WHERE id=? AND role=\'FMO\'').bind(fmoMatch[1]).first(); if (!current) return reply({ code:'NOT_FOUND', error:'FMO not found.' }, 404);
