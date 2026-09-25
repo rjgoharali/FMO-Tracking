@@ -143,6 +143,21 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     const rows = await env.DB.prepare(`SELECT a.id,a.duty_session_id,a.fmo_id,a.check_in_time,a.accuracy,a.latitude,a.longitude,u.name,u.employee_code,ds.start_time,ds.actual_end_time FROM attendance a JOIN users u ON u.id=a.fmo_id JOIN duty_sessions ds ON ds.id=a.duty_session_id ORDER BY a.check_in_time DESC LIMIT 100`).all<any>();
     return reply({ items: rows.results.map((r:any)=>({ id:r.id, dutySessionId:r.duty_session_id, fmoId:r.fmo_id, checkInTime:r.check_in_time, accuracy:r.accuracy, latitude:r.latitude, longitude:r.longitude, verificationStatus:'NOT_VERIFIED', isDemo:false, supersededAt:null, resetReason:null, name:r.name, employeeCode:r.employee_code, dutyStart:r.start_time, dutyEnd:r.actual_end_time, trackingStatus:'UNKNOWN', serverDurationSeconds:null })), hasMore:false });
   }
+  const attendanceMatch = url.pathname.match(/^\/api\/attendance\/([^/]+)$/);
+  if (attendanceMatch && request.method === 'GET') {
+    const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const row = await env.DB.prepare(`SELECT a.*,u.name,u.employee_code,ds.start_time,ds.expected_end_time,ds.actual_end_time,ds.status FROM attendance a JOIN users u ON u.id=a.fmo_id JOIN duty_sessions ds ON ds.id=a.duty_session_id WHERE a.id=?`).bind(attendanceMatch[1]).first<any>();
+    if (!row) return reply({ code:'NOT_FOUND', error:'Attendance record not found.' }, 404);
+    return reply({ attendance:{ id:row.id,dutySessionId:row.duty_session_id,fmoId:row.fmo_id,checkInTime:row.check_in_time,latitude:row.latitude,longitude:row.longitude,accuracy:row.accuracy,supersededAt:row.superseded_at ?? null,resetReason:row.reset_reason ?? null,name:row.name,employeeCode:row.employee_code,isDemo:false,verificationStatus:'NOT_VERIFIED' }, session:{ id:row.duty_session_id,startTime:row.start_time,expectedEndTime:row.expected_end_time,actualEndTime:row.actual_end_time,status:row.status,reportedStopTime:null,serverDurationSeconds:null,reportedDurationSeconds:null,endLocationFailure:null } });
+  }
+  const resetMatch = url.pathname.match(/^\/api\/attendance\/([^/]+)\/reset$/);
+  if (resetMatch && request.method === 'POST') {
+    const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
+    const body = await request.json<any>().catch(() => null); if (!body?.reason || String(body.reason).trim().length < 5) return reply({ code:'INVALID_REQUEST', error:'A reset reason is required.' }, 400);
+    const row = await env.DB.prepare('SELECT id FROM attendance WHERE id=? AND superseded_at IS NULL').bind(resetMatch[1]).first(); if (!row) return reply({ code:'NOT_FOUND', error:'Active attendance record not found.' }, 404);
+    await env.DB.prepare("UPDATE attendance SET superseded_at=datetime('now'),reset_reason=? WHERE id=?").bind(String(body.reason).trim(),resetMatch[1]).run();
+    return reply({ ok:true });
+  }
   if (url.pathname === '/api/reports/daily' && request.method === 'GET') {
     const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
     const rows = await env.DB.prepare(`SELECT u.id fmo_id,u.employee_code,u.name,ds.id duty_session_id,ds.start_time,ds.actual_end_time,a.check_in_time FROM users u LEFT JOIN duty_sessions ds ON ds.fmo_id=u.id LEFT JOIN attendance a ON a.duty_session_id=ds.id WHERE u.role='FMO' AND u.is_active=1 ORDER BY u.name`).all<any>();
