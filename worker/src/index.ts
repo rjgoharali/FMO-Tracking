@@ -143,6 +143,7 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     return reply({ ok:true });
   }
   if (fmoMatch && request.method === 'GET') {
+    const user = await authUser(request, env); if (!user || user.role === 'FMO') return reply({ code:'UNAUTHORIZED', error:'Admin session required.' }, 401);
     const row = await env.DB.prepare(`SELECT u.id,u.employee_code,u.name,u.is_active,u.phone,u.email,u.created_at,ds.id session_id,ds.start_time,ds.expected_end_time,ds.actual_end_time,ds.status session_status FROM users u LEFT JOIN duty_sessions ds ON ds.fmo_id=u.id AND ds.status='ACTIVE' WHERE u.id=? AND u.role='FMO'`).bind(fmoMatch[1]).first<any>();
     if (!row) return reply({ code:'NOT_FOUND', error:'FMO not found.' }, 404);
     const location = row.session_id ? await env.DB.prepare('SELECT latitude,longitude,accuracy,speed,recorded_at FROM location_logs WHERE fmo_id=? ORDER BY recorded_at DESC LIMIT 1').bind(row.id).first<any>() : null;
